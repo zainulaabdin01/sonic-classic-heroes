@@ -6,6 +6,8 @@ class PlayerManager
 	Player* currentPlayer;
 	const float gap = 50.0f;
 	Clock abilityClock;
+	bool currentFacingRight;  // Track current facing direction
+
 public:
 	PlayerManager() {
 		characters[0] = new Sonic(100, 100);
@@ -13,6 +15,7 @@ public:
 		characters[2] = new Knuckles(100 - 2 * gap , 100);
 		currentPlayer = characters[0]; // Start with Sonic
 		abilityClock.restart();
+		currentFacingRight = true;  // Initialize facing direction
 	}
 
 	~PlayerManager()
@@ -48,6 +51,9 @@ public:
 		currentPlayer->setPosition(x, y);
 		currentPlayer->setVelocity(vx, vy);
 
+		// Update main character direction for all characters
+		Player::updateMainCharacterDirection(currentFacingRight);
+
 		// Add a small cooldown to prevent rapid switching
 		static Clock switchCooldown;
 		if (switchCooldown.getElapsedTime().asSeconds() < 0.5f) {
@@ -61,6 +67,16 @@ public:
 		static Clock switchCooldown;
 
 		currentPlayer->handleInput();
+
+		// Update facing direction based on current character's velocity
+		if (currentPlayer->getVelX() > 0) {
+			currentFacingRight = true;
+			Player::updateMainCharacterDirection(true);
+		}
+		else if (currentPlayer->getVelX() < 0) {
+			currentFacingRight = false;
+			Player::updateMainCharacterDirection(false);
+		}
 
 		if (Keyboard::isKeyPressed(Keyboard::Tab) &&
 			switchCooldown.getElapsedTime().asSeconds() > 0.5f) {
