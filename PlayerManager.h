@@ -1,21 +1,47 @@
 #pragma once
 #include "Player.h"
+#include "Sonic.h"
+#include "Tails.h"
+#include "Knuckles.h"
+#include "Level.h"
+#include "HealthManager.h"
+#include <SFML/Graphics.hpp>
+
 class PlayerManager
 {
+private:
 	Player* characters[3];
 	Player* currentPlayer;
 	const float gap = 50.0f;
 	Clock abilityClock;
-	bool currentFacingRight;  // Track current facing direction
+	bool currentFacingRight;  
+	const float PIT_THRESHOLD = 800.0f; 
+	
+	// Respawn system
+	Clock followerRespawnTimer;
+	const float RESPAWN_DELAY = 0.7f; 
+	bool isFollowerRespawning;
+
+	// Starting positions
+	const float START_X = 100.0f;
+	const float START_Y = 100.0f;
+	HealthManager* healthManager;
 
 public:
-	PlayerManager() {
-		characters[0] = new Sonic(100, 100);
-		characters[1] = new Tails(100 - gap, 100);
-		characters[2] = new Knuckles(100 - 2 * gap , 100);
+	// Constructor
+	PlayerManager(HealthManager* healthMgr) : isFollowerRespawning(false), healthManager(healthMgr) {
+		characters[0] = new Sonic(START_X, START_Y, healthManager);
+		characters[1] = new Tails(START_X, START_Y, healthManager);
+		characters[2] = new Knuckles(START_X, START_Y, healthManager);
 		currentPlayer = characters[0]; // Start with Sonic
+		
+		// Set initial current character flags
+		characters[0]->setCurrentCharacter(true);  // Sonic is current
+		characters[1]->setCurrentCharacter(false); // Tails is follower
+		characters[2]->setCurrentCharacter(false); // Knuckles is follower
+		
 		abilityClock.restart();
-		currentFacingRight = true;  // Initialize facing direction
+		currentFacingRight = true;  
 	}
 
 	~PlayerManager()
@@ -26,15 +52,24 @@ public:
 		}
 	}
 
-	void switchCharacter() //Switch character
+	// Reset all players to the same starting position
+	void resetAllPlayers(float startX, float startY) {
+		for (int i = 0; i < 3; ++i) {
+			characters[i]->setPosition(startX, startY);
+			characters[i]->setVelocity(0, 0);
+			characters[i]->setOnGround(false);
+			characters[i]->setVisible(true);
+		}
+	}
+
+	//Switch character
+	void switchCharacter() 
 	{
-		// Store current position and velocity
 		float x = currentPlayer->getX();
 		float y = currentPlayer->getY();
 		float vx = currentPlayer->getVelX();
 		float vy = currentPlayer->getVelY();
 
-		// Find current character index
 		int currentIndex = 0;
 		for (int i = 0; i < 3; ++i) {
 			if (currentPlayer == characters[i]) {
@@ -43,30 +78,35 @@ public:
 			}
 		}
 
+		for (int i = 0; i < 3; ++i) {
+			characters[i]->setCurrentCharacter(false);
+		}
+
 		// Switch to next character
 		currentIndex = (currentIndex + 1) % 3;
 		currentPlayer = characters[currentIndex];
+
+		currentPlayer->setCurrentCharacter(true);
 
 		// Transfer position and velocity
 		currentPlayer->setPosition(x, y);
 		currentPlayer->setVelocity(vx, vy);
 
-		// Update main character direction for all characters
 		Player::updateMainCharacterDirection(currentFacingRight);
 
 		// Add a small cooldown to prevent rapid switching
 		static Clock switchCooldown;
 		if (switchCooldown.getElapsedTime().asSeconds() < 0.5f) {
-			return;  // Don't switch if cooldown is active
+			return;
 		}
 		switchCooldown.restart();
 	}
 
-	void handleInput(char** lvl, int cell_size)
+	void handleInput(Level* level)
 	{
 		static Clock switchCooldown;
 
-		currentPlayer->handleInput();
+		currentPlayer->handleInput(level);
 
 		// Update facing direction based on current character's velocity
 		if (currentPlayer->getVelX() > 0) {
@@ -78,25 +118,31 @@ public:
 			Player::updateMainCharacterDirection(false);
 		}
 
-		if (Keyboard::isKeyPressed(Keyboard::Tab) &&
+		if (Keyboard::isKeyPressed(Keyboard::Z) &&
 			switchCooldown.getElapsedTime().asSeconds() > 0.5f) {
 			switchCharacter();
 			switchCooldown.restart();
 		}
 
 		if (Keyboard::isKeyPressed(Keyboard::LControl)) {
-			currentPlayer->activateAbility(lvl, cell_size);
+			currentPlayer->activateAbility(level);
 		}
 	}
 
-	void updatePhysics(char** lvl, int cell_size)
+	void updatePhysics(Level* level)
 	{
 		float deltaTime = abilityClock.restart().asSeconds();
 		
 		bool jumpCommand = currentPlayer->hasJustJumped();
-		currentPlayer->updatePhysics(lvl, cell_size);
+		currentPlayer->updatePhysics(level);
 		currentPlayer->updateAbility(deltaTime);
 		currentPlayer->resetJumpFlag();
+
+		// Check if current player fell into pit
+		if (currentPlayer->getY() > PIT_THRESHOLD) {
+			resetAllPlayers(100, 100);
+			return;
+		}
 
 		float mainX = currentPlayer->getX();
 		float mainY = currentPlayer->getY();
@@ -104,11 +150,39 @@ public:
 		// Update followers
 		for (int i = 0; i < 3; ++i) {
 			if (characters[i] != currentPlayer) {
-				// Following logic with gap
+				if (characters[i]->getY() > PIT_THRESHOLD) {
+					if (!isFollowerRespawning) {
+						followerRespawnTimer.restart();
+						isFollowerRespawning = true;
+						characters[i]->setVisible(false);  // Make follower invisible
+					}
+					
+					// Check if respawn delay has passed
+					if (followerRespawnTimer.getElapsedTime().asSeconds() >= RESPAWN_DELAY) {
+						int followerIndex = 1;
+						for (int j = 0; j < 3; ++j) {
+							if (j != i && characters[j] != currentPlayer) {
+								followerIndex = 2;
+								break;
+							}
+						}
+						
+						// Respawn next to the current player
+						characters[i]->setPosition(mainX - (gap * followerIndex), mainY);
+						characters[i]->setVelocity(0, 0);
+						characters[i]->setOnGround(false);
+						characters[i]->setVisible(true);  // Make follower visible again
+						
+						isFollowerRespawning = false;
+					}
+					continue;
+				}
+
+				// Normal following behavior
 				int followerIndex = 1;
 				for (int j = 0; j < 3; ++j) {
 					if (j != i && characters[j] != currentPlayer) {
-						followerIndex = 2; // This is the second follower
+						followerIndex = 2;
 						break;
 					}
 				}
@@ -127,7 +201,7 @@ public:
 				}
 				else 
 				{
-					characters[i]->setVelX(dx * 0.5f); // Gentle adjustment when close
+					characters[i]->setVelX(dx * 0.5f);
 				}
 
 				// Synchronized jumping
@@ -136,14 +210,8 @@ public:
 					characters[i]->setOnGround(false);
 				}
 
-				characters[i]->updatePhysics(lvl, cell_size);
+				characters[i]->updatePhysics(level);
 				characters[i]->updateAbility(deltaTime);
-
-				// Respawn logic if character falls off
-				if (characters[i]->getY() > 800) {
-					characters[i]->setPosition(mainX - (gap * followerIndex), mainY);
-					characters[i]->setVelocity(0, 0);
-				}
 			}
 		}
 	}
@@ -156,5 +224,5 @@ public:
 		}
 	}
 
-	float getPlayerX() const { return currentPlayer->getX(); }
+	Player* getCurrentPlayer() const { return currentPlayer; }
 };

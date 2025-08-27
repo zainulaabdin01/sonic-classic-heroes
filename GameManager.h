@@ -1,134 +1,124 @@
 #pragma once
-#include "Player.h"
 #include <SFML/Graphics.hpp>
+#include "ScoreManager.h"
+#include "HealthManager.h"
+#include "PlayerManager.h"
+#include "LevelManager.h"
+#include "menu.h"
+
 using namespace sf;
 
 class GameManager {
 private:
     RenderWindow window;
-    Sonic sonic;
-    Texture sonicTex;
-    Sprite wallSprite;
-    Texture wallTex;
-    char** lvl;
-    const int cell_size = 64;
-    const int gridHeight = 14;
-    const int gridWidth = 110;
-	Clock gameClock;
+    ScoreManager scoreManager;
+    HealthManager healthManager;
+    PlayerManager playerManager;
+    LevelManager levelManager;
+    float camera_offset_x;
+    Font font;
+    Text scoreText;
+    Text healthText;
+    Clock deltaClock;
+    int startLevelIndex;
 
 public:
-    GameManager() : window(VideoMode(1200, 900), "Sonic") {
-        initialize();
-    }
-
-    void initialize() {
-        // Load textures
-        sonicTex.loadFromFile("sonic.png");
-        wallTex.loadFromFile("brick1.png");
-        wallSprite.setTexture(wallTex);
-
-        // Initialize level grid
-        lvl = new char* [gridHeight];
-        for (int i = 0; i < gridHeight; i++) {
-            lvl[i] = new char[gridWidth] {'\0'};
+    GameManager(int startLevelIndex_ = 1)
+        : window(VideoMode(1200, 900), "Sonic Game"),
+          playerManager(&healthManager),
+          levelManager(&playerManager, &scoreManager, &healthManager),
+          camera_offset_x(0),
+          startLevelIndex(startLevelIndex_)
+    {
+        window.setFramerateLimit(60);
+        if (!font.loadFromFile("Data/Gaslight_Regular.ttf")) {
+            // Handle error (font not found)
         }
-        for (int i = 0; i < gridWidth; i++) {
-            lvl[11][i] = 'w'; // Ground layer
-        }
-
-        // Initialize Sonic
-        sonic.initialize(100.0f, 11 * cell_size - 64, sonicTex, 2.0f);
+        scoreText.setFont(font);
+        scoreText.setCharacterSize(32);
+        scoreText.setFillColor(Color::Yellow);
+        scoreText.setPosition(20, 20);
+        healthText.setFont(font);
+        healthText.setCharacterSize(28);
+        healthText.setFillColor(Color::Red);
+        healthText.setPosition(20, 60);
     }
 
     void run() {
+        // Show menu first
+        // (Menu now handled in Source.cpp, so just set level)
+        levelManager.setCurrentLevelIndex(startLevelIndex - 1); // 0-based
+        // Main game loop
         while (window.isOpen()) {
-			float deltaTime = gameClock.restart().asMilliseconds();
-            handleInput();
-            update(deltaTime);
-            render();
-        }
-    }
-
-private:
-    void handleInput() {
-        Event ev;
-        while (window.pollEvent(ev)) {
-            if (ev.type == Event::Closed) window.close();
-            if (ev.type == Event::KeyPressed && ev.key.code == Keyboard::Space) {
-                sonic.jump();
+            Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == Event::Closed)
+                    window.close();
             }
-        }
 
-        // Horizontal movement
-        if (Keyboard::isKeyPressed(Keyboard::Left)) {
-            sonic.moveHorizontal(-1);
-        }
-        else if (Keyboard::isKeyPressed(Keyboard::Right)) {
-            sonic.moveHorizontal(1);
-        }
-        else
-		{
-			sonic.moveHorizontal(0);
-        }
-        
-        if (Keyboard::isKeyPressed(Keyboard::Space))
-        {
-            sonic.jump();
-        }
-    }
+            // Handle input only if not in transition
+            if (!levelManager.isInTransition()) {
+                playerManager.handleInput(levelManager.getCurrentLevel());
+            }
 
-    void update(float deltaTime) {
-        //float deltaTime = gameClock.restart().asMilliseconds();
-		//float deltaTime = 2.0f / 60.0f; // Fixed time step for simplicity
-        checkCollisions();
-        sonic.update(deltaTime);
-    }
+            // Update physics only if not in transition
+            if (!levelManager.isInTransition()) {
+                playerManager.updatePhysics(levelManager.getCurrentLevel());
+            }
 
-    void checkCollisions() {
-        Hitbox hb = sonic.getHitbox();
-        bool wasGrounded = sonic.getisGrounded();
-        sonic.setGrounded(false);
+            // Check for level transition
+            if (playerManager.getCurrentPlayer()->needsLevelTransition()) {
+                levelManager.handleLevelTransition(playerManager.getCurrentPlayer());
+            }
 
-        // Ground collision
-        int checkY = static_cast<int>((hb.y + hb.height) / cell_size);
-        int leftX = static_cast<int>(hb.x / cell_size);
-        int rightX = static_cast<int>((hb.x + hb.width) / cell_size);
+            // Update transition state
+            if (levelManager.updateTransition(playerManager.getCurrentPlayer())) {
+                camera_offset_x = 0;
+            }
 
-        if (checkY < gridHeight && (lvl[checkY][leftX] == 'w' || lvl[checkY][rightX] == 'w')) {
-            sonic.setY(checkY * cell_size - hb.height - 5);
-            sonic.setGrounded(true);
-            sonic.setSpeedY(0);
-        }
-        else {
-            sonic.setGrounded(false);
-        }
-
-        // Wall collision
-        int checkX = static_cast<int>(hb.x / cell_size);
-        int headY = static_cast<int>(hb.y / cell_size);
-        if (lvl[headY][checkX] == 'w') {
-            sonic.setSpeedX(0);
-        }
-    }
-
-    void render() {
-        window.clear();
-
-        // Draw level
-        for (int i = 0; i < gridHeight; i++) {
-            for (int j = 0; j < gridWidth; j++) {
-                if (lvl[i][j] == 'w') {
-                    wallSprite.setPosition(j * cell_size, i * cell_size);
-                    window.draw(wallSprite);
+            // Update camera position only if not in transition
+            if (!levelManager.isInTransition()) {
+                float playerX = playerManager.getCurrentPlayer()->getX();
+                if (playerX > 1200 / 2) {
+                    camera_offset_x = playerX - 1200 / 2;
                 }
             }
+
+            // Update collectibles (for ring animation)
+            float deltaTime = deltaClock.restart().asSeconds();
+            levelManager.getCurrentLevel()->updateCollectibles(deltaTime);
+
+            // Update enemies
+            float playerX = playerManager.getCurrentPlayer()->getX();
+            float playerY = playerManager.getCurrentPlayer()->getY();
+            levelManager.getCurrentLevel()->updateEnemies(deltaTime, playerX, playerY);
+
+            // Check for enemy or projectile collision and apply damage
+            Player* mainPlayer = playerManager.getCurrentPlayer();
+            if (!mainPlayer->getIsInvulnerable() && levelManager.getCurrentLevel()->checkEnemyCollisions(playerX, playerY, mainPlayer->getWidth(), mainPlayer->getHeight())) {
+                //healthManager.decrementHealth();
+                //mainPlayer->takeDamage();
+            }
+            mainPlayer->updateInvulnerability();
+
+            // Update score text
+            scoreText.setString("Score: " + std::to_string(scoreManager.getScore()));
+            // Update health text
+            healthText.setString("Health: " + std::to_string(healthManager.getHealth()));
+
+            // Draw everything
+            window.clear(Color::White);
+            levelManager.drawLevel(window, camera_offset_x);
+            levelManager.getCurrentLevel()->drawEnemies(window, camera_offset_x);
+            playerManager.draw(window, camera_offset_x);
+            window.draw(scoreText);
+            window.draw(healthText);
+            window.display();
+
+            // Close the window if the game is over
+            if (Player::isGameOverState()) {
+                window.close();
+            }
         }
-
-        // Draw Sonic
-        Sprite s = sonic.getSprite();
-        s.setPosition(sonic.getX(), sonic.getY());
-        window.draw(s);
-
-        window.display();
     }
 };

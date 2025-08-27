@@ -7,9 +7,14 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <SFML/Window.hpp>
+#include "Level.h"
+#include "Obstacle.h"
+#include "BreakableWall.h"
+#include "HealthManager.h"
 
 using namespace sf;
 using namespace std;
+
 
 // Player class declaration
 class Player {
@@ -23,8 +28,15 @@ protected:
     int hit_box_factor_x, hit_box_factor_y;
     bool onGround;
     bool justJumped;
+    bool isVisible;  
+    bool shouldTransitionLevel; 
+    bool isInvulnerable;
+    Clock invulnClock;
+    const float INVULN_TIME = 1.0f;
+    bool isCurrentCharacter;  
 
-    // Static direction tracker for all characters
+    HealthManager* healthManager;
+    static bool isGameOver;
     static bool mainCharacterFacingRight;
 
     // Constants
@@ -39,14 +51,120 @@ protected:
     bool abilityActive;
     Clock abilityTimer;
 
+    Music jumpMusic;
+
+    bool check_wall_collision(char** lvl, float x, float y, int cell_size, int width, int height) {
+        int gridX = static_cast<int>(x) / cell_size;
+        int gridY = static_cast<int>(y) / cell_size;
+
+        if (gridX < 0 || gridX >= width || gridY < 0 || gridY >= height)
+            return false;
+
+        return lvl[gridY][gridX] == 'w' || lvl[gridY][gridX] == 'b';  // Check for both walls and breakable walls
+    }
+
+    bool check_platform_collision(char** lvl, float x, float bottom_y, int cell_size, int width, int height) {
+        int gridX = static_cast<int>(x) / cell_size;
+        int gridY = static_cast<int>(bottom_y) / cell_size;
+
+        if (gridX < 0 || gridX >= width || gridY < 0 || gridY >= height)
+            return false;
+
+        return lvl[gridY][gridX] == 'p';  // Check for platforms
+    }
+
+    void handleCollisions(Level* level) {
+        int cell_size = level->getCellSize();
+        char** lvl = level->getLevelData();
+        int width = level->getWidth();
+        int height = level->getHeight();
+
+        // Store original position
+        float original_x = player_x;
+        float original_y = player_y;
+
+        // Try horizontal movement
+        player_x += velocityX;
+
+        // Check horizontal collisions
+        bool collisionLeftWall = check_wall_collision(lvl, player_x + hit_box_factor_x, player_y + hit_box_factor_y, cell_size, width, height) ||
+                               check_wall_collision(lvl, player_x + hit_box_factor_x, player_y + Pheight - hit_box_factor_y, cell_size, width, height);
+        bool collisionRightWall = check_wall_collision(lvl, player_x + Pwidth - hit_box_factor_x, player_y + hit_box_factor_y, cell_size, width, height) ||
+                                check_wall_collision(lvl, player_x + Pwidth - hit_box_factor_x, player_y + Pheight - hit_box_factor_y, cell_size, width, height);
+
+        // If there's a horizontal collision, revert the movement
+        if (collisionLeftWall || collisionRightWall) {
+            player_x = original_x;
+            velocityX = 0;
+        }
+
+        // Try vertical movement
+        float offset_y = player_y + velocityY;
+
+        // Check if player is in the last pit
+        if (level->isInLastPit(player_x, player_y)) {
+            shouldTransitionLevel = true;
+            return;
+        }
+
+        // Wall collisions (full collision)
+        bool collisionBottomWallLeft = check_wall_collision(lvl, player_x + hit_box_factor_x,
+            offset_y + Pheight, cell_size, width, height);
+        bool collisionBottomWallRight = check_wall_collision(lvl, player_x + Pwidth - hit_box_factor_x,
+            offset_y + Pheight, cell_size, width, height);
+        bool collisionBottomWallMid = check_wall_collision(lvl, player_x + Pwidth / 2,
+            offset_y + Pheight, cell_size, width, height);
+
+        // Platform collisions (top-side only)
+        bool collisionPlatformLeft = check_platform_collision(lvl, player_x + hit_box_factor_x,
+            offset_y + Pheight, cell_size, width, height);
+        bool collisionPlatformRight = check_platform_collision(lvl, player_x + Pwidth - hit_box_factor_x,
+            offset_y + Pheight, cell_size, width, height);
+        bool collisionPlatformMid = check_platform_collision(lvl, player_x + Pwidth / 2,
+            offset_y + Pheight, cell_size, width, height);
+
+        // Handle wall collisions (full collision)
+        if (collisionBottomWallLeft || collisionBottomWallMid || collisionBottomWallRight) {
+            player_y = ((int)(offset_y + Pheight) / cell_size) * cell_size - Pheight - 1;
+            onGround = true;
+            velocityY = 0;
+        }
+        // Handle platform collisions (only when falling down)
+        else if ((collisionPlatformLeft || collisionPlatformMid || collisionPlatformRight) && velocityY > 0) {
+            player_y = ((int)(offset_y + Pheight) / cell_size) * cell_size - Pheight - 1;
+            onGround = true;
+            velocityY = 0;
+        }
+        else {
+            player_y = offset_y;
+            onGround = false;
+        }
+    }
+
 public:
-    Player(float start_x, float start_y, float scale = 2.5f) :
-        player_x(start_x), player_y(start_y), scale_x(scale), scale_y(scale) 
+    Player(float start_x, float start_y, HealthManager* healthMgr, float scale = 2.5f) :
+        player_x(start_x), player_y(start_y), scale_x(scale), scale_y(scale),
+        isInvulnerable(false), isCurrentCharacter(false), healthManager(healthMgr)
     {
         // Initialize state
         velocityX = 0;
         velocityY = 0;
         onGround = false;
+        isVisible = true;  // Initialize as visible
+        shouldTransitionLevel = false;
+        jumpMusic.openFromFile("Data/Jump.ogg");
+        jumpMusic.setVolume(30);
+    }
+
+    // Static method to check if game is over
+    static bool isGameOverState() { return isGameOver; }
+
+    // Method to set current character status
+    void setCurrentCharacter(bool isCurrent) {
+        isCurrentCharacter = isCurrent;
+        if (isCurrent) {
+            cout << "Current character health: " << (healthManager ? healthManager->getHealth() : 0) << " hearts" << endl;
+        }
     }
 
     // Static method to update main character direction
@@ -54,26 +172,37 @@ public:
         mainCharacterFacingRight = facingRight;
     }
 
-    virtual void handleInput() 
+    virtual void handleInput(Level* level)
     {
+        PhysicsConfig* phys = level ? level->getPhysicsConfig() : nullptr;
+        float acc = phys ? phys->getAcceleration() : acceleration;
+        float maxSpd = phys ? phys->getMaxSpeed() : max_speed;
+        float friction = phys ? phys->getFriction() : acceleration;
         // Horizontal movement
         if (Keyboard::isKeyPressed(Keyboard::Right)) {
-            velocityX += acceleration;
-            if (velocityX > max_speed) velocityX = max_speed;
+            velocityX += acc;
+            if (velocityX > maxSpd) velocityX = maxSpd;
         }
         else if (Keyboard::isKeyPressed(Keyboard::Left)) {
-            velocityX -= acceleration;
-            if (velocityX < -max_speed) velocityX = -max_speed;
+            velocityX -= acc;
+            if (velocityX < -maxSpd) velocityX = -maxSpd;
         }
         else 
         {
-            velocityX = 0; // Maintain original behavior
+            // Apply friction when not pressing left/right
+            if (velocityX > 0) {
+                velocityX -= friction;
+                if (velocityX < 0) velocityX = 0;
+            } else if (velocityX < 0) {
+                velocityX += friction;
+                if (velocityX > 0) velocityX = 0;
+            }
         }
 
-		if (Keyboard::isKeyPressed(Keyboard::Space)) 
+        if (Keyboard::isKeyPressed(Keyboard::Space)) 
         {
-			jump();
-		}
+            jump();
+        }
     }
 
     void jump() {
@@ -81,45 +210,55 @@ public:
             velocityY = jumpStrength;
             onGround = false;
 			justJumped = true;
+			jumpMusic.play();
         }
     }
 
-    virtual void updatePhysics(char** lvl, const int cell_size) 
+    virtual void updatePhysics(Level* level) 
     {
-        // Gravity and vertical collisions
-        float offset_y = player_y;
-        offset_y += velocityY;
-
-        char bottom_left_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x) / cell_size];
-        char bottom_mid_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x + Pwidth / 2) / cell_size];
-        char bottom_right_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x + Pwidth) / cell_size];
-
-        if (bottom_left_down == 'w' || bottom_mid_down == 'w' || bottom_right_down == 'w') {
-            onGround = true;
-        }
-        else {
-            player_y = offset_y;
-            onGround = false;
-        }
-
+        PhysicsConfig* phys = level ? level->getPhysicsConfig() : nullptr;
+        float grav = phys ? phys->getGravity() : gravity;
+        float termVel = phys ? phys->getTerminalVelocity() : terminal_Velocity;
+        // Apply gravity if not on ground
         if (!onGround) {
-            velocityY += gravity;
-            if (velocityY >= terminal_Velocity) velocityY = terminal_Velocity;
+            velocityY += grav;
+            if (velocityY >= termVel) velocityY = termVel;
         }
-        else {
-            velocityY = 0;
+
+        // Handle collisions
+        handleCollisions(level);
+
+        // Check obstacle collisions
+        float damage = level->checkObstacleCollisions(player_x, player_y, Pwidth, Pheight);
+        if (damage > 0) {
+            takeDamage();
+        }
+
+        // Check collectible (ring) collisions
+        level->checkCollectibleCollisions(player_x, player_y, Pwidth, Pheight);
+
+        // Reset color and invulnerability after duration
+        if (isInvulnerable && invulnClock.getElapsedTime().asSeconds() >= INVULN_TIME) {
+            isInvulnerable = false;
+            sprite.setColor(Color::White);
         }
 
         // Apply horizontal movement
-        player_x += velocityX;
+        float maxSpd = phys ? phys->getMaxSpeed() : max_speed;
+        if (velocityX > 0) {
+            velocityX = min(velocityX, maxSpd);
+        } else if (velocityX < 0) {
+            velocityX = max(velocityX, -maxSpd);
+        }
     }
 
     virtual void draw(RenderWindow& window, float camera_offset_x) {
+        if (isVisible) {  // Only draw if visible
         sprite.setPosition((player_x - camera_offset_x), player_y);
         window.draw(sprite);
+        }
     }
 
-	//virtual void useSpecialAbility() = 0;
     virtual float getMaxSpeed() = 0;
 	virtual void setPosition(float x, float y) 
     { 
@@ -132,12 +271,14 @@ public:
         velocityY = vy; 
     }
     virtual float getJumpStrength() const = 0;
-    virtual void activateAbility(char** lvl, int cell_size) = 0;
+    virtual void activateAbility(Level* level) = 0;
     virtual void updateAbility(float deltaTime) = 0;
     virtual bool isAbilityActive() const { return abilityActive; }
 
     float getX() const { return player_x; }
     float getY() const { return player_y; }
+    int getWidth() const { return Pwidth; }
+	int getHeight() const { return Pheight; }
 	float getVelX() const { return velocityX; }
 	float getVelY() const { return velocityY; }
 	void setVelX(float vx) { velocityX = vx; }
@@ -146,605 +287,56 @@ public:
     void resetJumpFlag() { justJumped = false; }
 	bool isOnGround() const { return onGround; }
 	void setOnGround(bool ground) { onGround = ground; }
+    void setVisible(bool visible) { isVisible = visible; }
+    bool getVisible() const { return isVisible; }
+
+    // check if level transition is needed
+    bool needsLevelTransition() const {
+        return shouldTransitionLevel;
+    }
+
+    //reset level transition flag
+    void resetLevelTransition() {
+        shouldTransitionLevel = false;
+    }
+
+    // Method to handle damage (always decrements health by 1, applies invulnerability)
+    void takeDamage() {
+        if (isCurrentCharacter && !isInvulnerable) {
+            // Main player takes damage
+            if (healthManager) healthManager->decrementHealth();
+            cout << "Health: " << (healthManager ? healthManager->getHealth() : 0) << endl;
+            // Visual feedback
+            sprite.setColor(Color(255, 0, 0, 128));
+            // Set invulnerability
+            isInvulnerable = true;
+            invulnClock.restart();
+            if (healthManager && healthManager->getHealth() <= 0) {
+                cout << "Game Over! Health reached 0" << endl;
+                isGameOver = true;
+            }
+        }
+        else if (!isCurrentCharacter) {
+            // Follower only shows visual feedback
+            sprite.setColor(Color(255, 0, 0, 128));
+        }
+    }
+
+    int getHealth() const { return healthManager ? healthManager->getHealth() : 0; }
+    bool isAlive() const { return healthManager ? healthManager->getHealth() > 0 : false; }
+
+    void incrementSharedHealth() { if (healthManager) healthManager->incrementHealth(); }
+
+    bool getIsInvulnerable() const { return isInvulnerable; }
+	void setIsInvulnerable(bool invulnerable) { isInvulnerable = invulnerable; }
+
+    void updateInvulnerability() {
+        if (isInvulnerable && invulnClock.getElapsedTime().asSeconds() > INVULN_TIME) {
+            isInvulnerable = false;
+        }
+    }
 };
 
-// Initialize static member
+bool Player::isGameOver = false;
 bool Player::mainCharacterFacingRight = true;
-
-class Sonic : public Player
-{
-private:
-    float originalSpeed;
-    // Single frame textures for different states
-    Texture standingTexture;
-    Texture runningTexture;
-    Texture ballTexture;
-    Texture currentTexture;
-    
-    // Simple state tracking
-    bool facingRight;
-    bool isBall;
-    
-    bool loadTexture(Texture& texture, const string& filename) {
-        if (!texture.loadFromFile(filename)) {
-            cout << "Failed to load texture: " << filename << endl;
-            return false;
-        }
-        cout << "Successfully loaded texture: " << filename << endl;
-        return true;
-    }
-    
-    void updateSprite() {
-        Texture* newTexture = nullptr;
-        
-        // Check for max speed (ball form) - priority condition
-        if (abs(velocityX) >= max_speed) {
-            newTexture = &ballTexture;
-            isBall = true;
-        }
-        // Check for running
-        else if (abs(velocityX) > 0) {
-            newTexture = &runningTexture;
-            isBall = false;
-        }
-        // Standing still
-        else {
-            newTexture = &standingTexture;
-            isBall = false;
-        }
-
-        // Update texture
-        currentTexture = *newTexture;
-        sprite.setTexture(currentTexture);
-
-        // Update facing direction based on velocity
-        if (velocityX > 0) {
-            facingRight = true;
-        }
-        else if (velocityX < 0) {
-            facingRight = false;
-        }
-
-        // Set sprite direction and position
-        if (facingRight) {
-            sprite.setScale(scale_x, scale_y);
-            sprite.setOrigin(0, 0);
-        } else {
-            sprite.setScale(-scale_x, scale_y);
-            sprite.setOrigin(sprite.getLocalBounds().width, 0);
-        }
-
-        // Update main character direction for other characters
-        updateMainCharacterDirection(facingRight);
-    }
-
-public:
-    Sonic(float start_x, float start_y, float scale = 2.5f) : Player(start_x, start_y, scale) 
-    {
-        
-        // Load single frame textures
-        if (!loadTexture(standingTexture, "Data/sonic_standing.png")) {
-            cout << "Error: Could not load standing texture!" << endl;
-        }
-        if (!loadTexture(runningTexture, "Data/sonic_running.png")) {
-            cout << "Error: Could not load running texture!" << endl;
-        }
-        if (!loadTexture(ballTexture, "Data/sonic_ball.png")) {
-            cout << "Error: Could not load ball texture!" << endl;
-        }
-        
-        // Set initial texture and position
-        currentTexture = standingTexture;
-        sprite.setTexture(currentTexture);
-        sprite.setScale(scale_x, scale_y);
-        sprite.setOrigin(0, 0);  // Set initial origin
-        
-        // Calculate hitbox factors
-        const int raw_img_x = 24;
-        const int raw_img_y = 35;
-        Pheight = static_cast<int>(raw_img_y * scale_y);
-        Pwidth = static_cast<int>(raw_img_x * scale_x);
-        hit_box_factor_x = static_cast<int>(8 * scale_x);
-        hit_box_factor_y = static_cast<int>(5 * scale_y);
-        
-        // Initialize state
-        velocityX = 0;
-        velocityY = 0;
-        onGround = false;
-        originalSpeed = max_speed;
-        facingRight = true;
-        isBall = false;
-       
-    }
-
-    void handleInput() override
-    {
-        Player::handleInput();
-        
-        // Update facing direction
-        if (velocityX > 0) {
-            if (!facingRight) {
-                facingRight = true;
-            }
-        }
-        else if (velocityX < 0) {
-            if (facingRight) {
-                facingRight = false;
-            }
-        }
-        
-        if (Keyboard::isKeyPressed(Keyboard::LControl))
-        {
-            activateAbility(nullptr, 0);
-        }
-    }
-
-    void updatePhysics(char** lvl, const int cell_size) override
-    {
-        Player::updatePhysics(lvl, cell_size);
-        updateSprite();
-    }
-
-    void activateAbility(char** lvl, int cell_size) override
-    {
-        if (abilityCooldown <= 0 && !abilityActive) 
-        {
-            // Speed boost ability
-            originalSpeed = max_speed;  // Store current speed before boost
-            max_speed = originalSpeed * 3.0f;
-            abilityDuration = 15.0f;
-            abilityCooldown = 10.0f;
-            abilityActive = true;
-        }
-    }
-    void updateAbility(float deltaTime) override 
-    {
-        if (abilityActive) 
-        {
-            abilityDuration -= deltaTime;
-            if (abilityDuration <= 0) 
-            {
-                max_speed = originalSpeed;  // Restore original speed
-                abilityActive = false;
-            }
-        }
-        abilityCooldown = max(0.0f, abilityCooldown - deltaTime);
-    }
-
-	float getMaxSpeed() override { return 18.0f; }
-	float getJumpStrength() const override { return -20.0f; }
-};
-
-class Tails : public Player
-{
-private:
-    float flightTimeRemaining;
-    bool isFlying;
-    const float FLIGHT_LIFT = -12.0f;
-    const float FLIGHT_MAX_TIME = 7.0f;
-    const float FLIGHT_RECHARGE_RATE = 2.0f;
-    const float FLIGHT_TARGET_HEIGHT = 200.0f;
-    const float FLIGHT_DESCENT_SPEED = 2.0f;
-    float initialFlightHeight;
-    bool hasReachedTargetHeight;
-
-    // Textures for different states
-    Texture standingTexture;
-    Texture runningTexture;
-    Texture flyingTexture;
-    Texture ballTexture;
-    Texture currentTexture;
-    bool facingRight;
-    bool isBall;
-
-    enum class TextureState {
-        STANDING,
-        RUNNING,
-        FLYING,
-        BALL
-    };
-    TextureState currentState;
-
-    bool loadTexture(Texture& texture, const string& filename) {
-        if (!texture.loadFromFile(filename)) {
-            return false;
-        }
-        return true;
-    }
-
-    void updateSprite() {
-        Texture* newTexture = nullptr;
-        TextureState newState = currentState;
-        
-        // Determine new state based on conditions
-        if (abs(velocityX) >= max_speed) {
-            newState = TextureState::BALL;
-        }
-        else if (isFlying) {
-            newState = TextureState::FLYING;
-        }
-        else if (abs(velocityX) > 0) {
-            newState = TextureState::RUNNING;
-        }
-        else {
-            newState = TextureState::STANDING;
-        }
-
-        // Only update texture if state changed
-        if (newState != currentState) {
-            switch (newState) {
-                case TextureState::BALL:
-                    newTexture = &ballTexture;
-                    isBall = true;
-                    break;
-                case TextureState::FLYING:
-                    newTexture = &flyingTexture;
-                    isBall = false;
-                    break;
-                case TextureState::RUNNING:
-                    newTexture = &runningTexture;
-                    isBall = false;
-                    break;
-                case TextureState::STANDING:
-                    newTexture = &standingTexture;
-                    isBall = false;
-                    break;
-            }
-            currentState = newState;
-            currentTexture = *newTexture;
-            sprite.setTexture(currentTexture);
-        }
-
-        // Use main character's direction
-        facingRight = mainCharacterFacingRight;
-        
-        // Set sprite direction and position
-        if (facingRight) {
-            sprite.setScale(scale_x, scale_y);
-            sprite.setOrigin(0, 0);
-        } else {
-            sprite.setScale(-scale_x, scale_y);
-            sprite.setOrigin(sprite.getLocalBounds().width, 0);
-        }
-    }
-
-public:
-    Tails(float start_x, float start_y, float scale = 2.5f) : Player(start_x, start_y, scale)
-    {
-        // Load textures
-        loadTexture(standingTexture, "Data/tails_standing.png");
-        loadTexture(runningTexture, "Data/tails_running.png");
-        loadTexture(flyingTexture, "Data/tails_flying.png");
-        loadTexture(ballTexture, "Data/tails_ball.png");
-        
-        // Set initial texture
-        currentTexture = standingTexture;
-        sprite.setTexture(currentTexture);
-        sprite.setScale(scale_x, scale_y);
-        sprite.setOrigin(0, 0);
-        
-        // Calculate hitbox factors
-        const int raw_img_x = 24;
-        const int raw_img_y = 35;
-        Pheight = static_cast<int>(raw_img_y * scale_y);
-        Pwidth = static_cast<int>(raw_img_x * scale_x);
-        hit_box_factor_x = static_cast<int>(8 * scale_x);
-        hit_box_factor_y = static_cast<int>(5 * scale_y);
-        
-        // Initialize state
-        velocityX = 0;
-        velocityY = 0;
-        onGround = false;
-        flightTimeRemaining = FLIGHT_MAX_TIME;
-        isFlying = false;
-        initialFlightHeight = 0.0f;
-        hasReachedTargetHeight = false;
-        facingRight = true;
-        isBall = false;
-        currentState = TextureState::STANDING;
-    }
-
-    void handleInput() override
-    {
-        Player::handleInput();
-        
-        // Update facing direction
-        if (velocityX > 0) {
-            if (!facingRight) {
-                facingRight = true;
-            }
-        }
-        else if (velocityX < 0) {
-            if (facingRight) {
-                facingRight = false;
-            }
-        }
-        
-        if (Keyboard::isKeyPressed(Keyboard::LControl))
-        {
-            activateAbility(nullptr, 0);
-        }
-    }
-
-    void updatePhysics(char** lvl, const int cell_size) override
-    {
-        if (!isFlying) {
-            Player::updatePhysics(lvl, cell_size);
-        }
-        else {
-            // Custom flight physics
-            float offset_y = player_y;
-            offset_y += velocityY;
-
-            // Check for ground collision
-            char bottom_left_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x) / cell_size];
-            char bottom_mid_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x + Pwidth / 2) / cell_size];
-            char bottom_right_down = lvl[(int)(offset_y + hit_box_factor_y + Pheight) / cell_size][(int)(player_x + hit_box_factor_x + Pwidth) / cell_size];
-
-            if (bottom_left_down == 'w' || bottom_mid_down == 'w' || bottom_right_down == 'w') {
-                onGround = true;
-                endFlight();
-            }
-            else {
-                player_y = offset_y;
-                onGround = false;
-            }
-
-            // Apply horizontal movement
-            player_x += velocityX;
-        }
-        updateSprite();
-    }
-
-    void activateAbility(char** lvl, int cell_size) override {
-        if (!isFlying && abilityCooldown <= 0 && flightTimeRemaining > 0) {
-            isFlying = true;
-            initialFlightHeight = player_y;
-            hasReachedTargetHeight = false;
-            velocityY = FLIGHT_LIFT;  // Strong initial lift
-            abilityActive = true;
-            onGround = false;  // Ensure we're not grounded when starting flight
-        }
-    }
-
-    void updateAbility(float deltaTime) override {
-        if (isFlying) {
-            flightTimeRemaining -= deltaTime;
-            
-            // Initial ascent phase
-            if (!hasReachedTargetHeight) {
-                if (player_y <= initialFlightHeight - FLIGHT_TARGET_HEIGHT) {
-                    hasReachedTargetHeight = true;
-                    velocityY = 0;  // Stop ascending
-                }
-                else {
-                    velocityY = FLIGHT_LIFT;  // Keep ascending
-                }
-            }
-            // Maintain height phase
-            else {
-                if (Keyboard::isKeyPressed(Keyboard::Space)) {
-                    velocityY = FLIGHT_LIFT;  // Allow ascending
-                }
-                else {
-                    // Maintain height with slight gravity
-                    velocityY = min(velocityY + gravity * 0.1f, 0.0f);
-                }
-            }
-
-            // End flight if conditions are met
-            if (flightTimeRemaining <= 0 || onGround) {
-                endFlight();
-            }
-        }
-
-        // Recharge flight time when on ground
-        if (onGround && !isFlying) {
-            flightTimeRemaining = min(FLIGHT_MAX_TIME, 
-                flightTimeRemaining + (deltaTime * FLIGHT_RECHARGE_RATE));
-        }
-
-        // Update cooldown
-        abilityCooldown = max(0.0f, abilityCooldown - deltaTime);
-    }
-
-    void endFlight() {
-        isFlying = false;
-        abilityActive = false;
-        abilityCooldown = 5.0f;
-        hasReachedTargetHeight = false;
-        // Allow natural descent
-        velocityY = 0;
-    }
-
-    float getMaxSpeed() override { return 10.0f; }
-    float getJumpStrength() const override { return -20.0f; }
-};
-
-class Knuckles : public Player
-{
-private:
-    bool isPunching;
-    float punchCooldown;
-    const float PUNCH_DURATION = 0.3f;
-    const float PUNCH_COOLDOWN = 1.0f;
-    const int PUNCH_RANGE = 1;
-
-    // Textures for different states
-    Texture standingTexture;
-    Texture runningTexture;
-    Texture ballTexture;
-    Texture currentTexture;
-    bool facingRight;
-    bool isBall;
-
-    enum class TextureState {
-        STANDING,
-        RUNNING,
-        BALL
-    };
-    TextureState currentState;
-
-    bool loadTexture(Texture& texture, const string& filename) {
-        if (!texture.loadFromFile(filename)) {
-            return false;
-        }
-        return true;
-    }
-
-    void updateSprite() {
-        Texture* newTexture = nullptr;
-        TextureState newState = currentState;
-        
-        // Determine new state based on conditions
-        if (abs(velocityX) >= max_speed) {
-            newState = TextureState::BALL;
-        }
-        else if (abs(velocityX) > 0) {
-            newState = TextureState::RUNNING;
-        }
-        else {
-            newState = TextureState::STANDING;
-        }
-
-        // Only update texture if state changed
-        if (newState != currentState) {
-            switch (newState) {
-                case TextureState::BALL:
-                    newTexture = &ballTexture;
-                    isBall = true;
-                    break;
-                case TextureState::RUNNING:
-                    newTexture = &runningTexture;
-                    isBall = false;
-                    break;
-                case TextureState::STANDING:
-                    newTexture = &standingTexture;
-                    isBall = false;
-                    break;
-            }
-            currentState = newState;
-            currentTexture = *newTexture;
-            sprite.setTexture(currentTexture);
-        }
-
-        // Use main character's direction
-        facingRight = mainCharacterFacingRight;
-        
-        // Set sprite direction and position
-        if (facingRight) {
-            sprite.setScale(scale_x, scale_y);
-            sprite.setOrigin(0, 0);
-        } else {
-            sprite.setScale(-scale_x, scale_y);
-            sprite.setOrigin(sprite.getLocalBounds().width, 0);
-        }
-    }
-
-public:
-    Knuckles(float start_x, float start_y, float scale = 2.5f) : Player(start_x, start_y, scale)
-    {
-        // Load textures
-        loadTexture(standingTexture, "Data/knuckles_standing.png");
-        loadTexture(runningTexture, "Data/knuckles_running.png");
-        loadTexture(ballTexture, "Data/knuckles_ball.png");
-        
-        // Set initial texture
-        currentTexture = standingTexture;
-        sprite.setTexture(currentTexture);
-        sprite.setScale(scale_x, scale_y);
-        sprite.setOrigin(0, 0);
-        
-        // Calculate hitbox factors
-        const int raw_img_x = 24;
-        const int raw_img_y = 35;
-        Pheight = static_cast<int>(raw_img_y * scale_y);
-        Pwidth = static_cast<int>(raw_img_x * scale_x);
-        hit_box_factor_x = static_cast<int>(8 * scale_x);
-        hit_box_factor_y = static_cast<int>(5 * scale_y);
-        
-        // Initialize state
-        velocityX = 0;
-        velocityY = 0;
-        onGround = false;
-        punchCooldown = 0;
-        isPunching = false;
-        facingRight = true;
-        isBall = false;
-        currentState = TextureState::STANDING;
-    }
-
-    void handleInput() override
-    {
-        Player::handleInput();
-        
-        // Update facing direction
-        if (velocityX > 0) {
-            if (!facingRight) {
-                facingRight = true;
-            }
-        }
-        else if (velocityX < 0) {
-            if (facingRight) {
-                facingRight = false;
-            }
-        }
-        
-        if (Keyboard::isKeyPressed(Keyboard::LControl))
-        {
-            activateAbility(nullptr, 0);
-        }
-    }
-
-    void updatePhysics(char** lvl, const int cell_size) override
-    {
-        Player::updatePhysics(lvl, cell_size);
-        updateSprite();
-    }
-
-    void activateAbility(char** lvl, int cell_size) override {
-        if (punchCooldown <= 0 && !isPunching) {
-            isPunching = true;
-            punchCooldown = PUNCH_COOLDOWN;
-            abilityActive = true;
-            breakWalls(lvl, cell_size);
-        }
-    }
-
-    void updateAbility(float deltaTime) override {
-        if (isPunching) {
-            // End punch after duration
-            if (deltaTime >= PUNCH_DURATION) {
-                isPunching = false;
-                abilityActive = false;
-            }
-        }
-        punchCooldown = std::max(0.0f, punchCooldown - deltaTime);
-    }
-
-    void breakWalls(char** lvl, int cell_size) {
-        // Check adjacent cells in a square pattern
-        int centerX = static_cast<int>(player_x + Pwidth / 2) / cell_size;
-        int centerY = static_cast<int>(player_y + Pheight / 2) / cell_size;
-
-        for (int dx = -PUNCH_RANGE; dx <= PUNCH_RANGE; dx++) {
-            for (int dy = -PUNCH_RANGE; dy <= PUNCH_RANGE; dy++) {
-                int x = centerX + dx;
-                int y = centerY + dy;
-                
-                // Check if within level bounds
-                if (x >= 0 && y >= 0 && x < 110 && y < 14) {
-                    // Break both breakable walls ('b') and punchable walls ('p')
-                    if (lvl[y][x] == 'b' || lvl[y][x] == 'p') {
-                        lvl[y][x] = 's'; // Convert to empty space
-                    }
-                }
-            }
-        }
-    }
-
-    float getMaxSpeed() override { return 12.0f; }
-    float getJumpStrength() const override { return -22.0f; }
-};
-
-#endif
+#endif // PLAYER_H

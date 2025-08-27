@@ -134,12 +134,35 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Sonic.cpp" />
     <ClCompile Include="Source.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BatBrain.h" />
+    <ClInclude Include="BeeBot.h" />
+    <ClInclude Include="BreakableWall.h" />
+    <ClInclude Include="Collectible.h" />
+    <ClInclude Include="CrabMeat.h" />
+    <ClInclude Include="Enemy.h" />
+    <ClInclude Include="EnemyManager.h" />
+    <ClInclude Include="ExtraLife.h" />
     <ClInclude Include="GameManager.h" />
+    <ClInclude Include="HealthManager.h" />
+    <ClInclude Include="Knuckles.h" />
+    <ClInclude Include="Level.h" />
+    <ClInclude Include="LevelManager.h" />
+    <ClInclude Include="Levels.h" />
+    <ClInclude Include="menu.h" />
+    <ClInclude Include="Motobug.h" />
+    <ClInclude Include="Obstacle.h" />
+    <ClInclude Include="PhysicsConfig.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="PlayerManager.h" />
+    <ClInclude Include="Ring.h" />
+    <ClInclude Include="ScoreManager.h" />
+    <ClInclude Include="Sonic.h" />
+    <ClInclude Include="SpecialBoost.h" />
+    <ClInclude Include="Tails.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
