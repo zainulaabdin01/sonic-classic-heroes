@@ -39,17 +39,38 @@ protected:
     static bool isGameOver;
     static bool mainCharacterFacingRight;
 
-    // Constants
+    // Physics constants - tuned for smooth, realistic movement
     float max_speed = 15;
-    const float jumpStrength = -20;
-    const float gravity = 0.98f;
-    const float terminal_Velocity = 20;
-    const float acceleration = 0.2f;
+    const float jumpStrength = -18.0f;
+    const float gravity = 0.65f;
+    const float terminal_Velocity = 18;
+    
+    // Acceleration/deceleration - different values for smooth feel
+    const float groundAcceleration = 0.45f;    // How fast we speed up on ground
+    const float airAcceleration = 0.25f;       // Reduced control in air
+    const float groundFriction = 0.92f;        // Multiplier when not pressing keys (1.0 = no friction)
+    const float airFriction = 0.98f;           // Less friction in air
+    const float turnAroundBoost = 0.6f;        // Extra decel when changing direction
+    const float skidThreshold = 8.0f;          // Speed at which skidding starts
+    
+    // Jump physics
+    const float jumpCutMultiplier = 0.4f;      // Multiplier when releasing jump early
+    const float coyoteTime = 0.1f;             // Time after leaving ground you can still jump
+    const float jumpBufferTime = 0.1f;         // Time before landing that jump input is remembered
+    float coyoteTimer = 0.0f;
+    float jumpBufferTimer = 0.0f;
+    bool jumpHeld = false;
+    bool jumpReleased = true;                  // Prevents auto-jumping when holding space
+    
+    // Smooth speed ramping
+    float targetVelocityX = 0.0f;
+    const float velocitySmoothing = 0.15f;     // Lerp factor for velocity
 
     float abilityCooldown;
     float abilityDuration;
     bool abilityActive;
     Clock abilityTimer;
+    Clock frameTimer;
 
     Music jumpMusic;
 
@@ -152,7 +173,7 @@ public:
         onGround = false;
         isVisible = true;  // Initialize as visible
         shouldTransitionLevel = false;
-        jumpMusic.openFromFile("Data/Jump.ogg");
+        jumpMusic.openFromFile("Data/Jump.wav");
         jumpMusic.setVolume(30);
     }
 
@@ -174,44 +195,99 @@ public:
 
     virtual void handleInput(Level* level)
     {
+        float deltaTime = frameTimer.restart().asSeconds();
+        if (deltaTime > 0.1f) deltaTime = 0.016f; // Cap delta time
+        
         PhysicsConfig* phys = level ? level->getPhysicsConfig() : nullptr;
-        float acc = phys ? phys->getAcceleration() : acceleration;
         float maxSpd = phys ? phys->getMaxSpeed() : max_speed;
-        float friction = phys ? phys->getFriction() : acceleration;
-        // Horizontal movement
-        if (Keyboard::isKeyPressed(Keyboard::Right)) {
-            velocityX += acc;
+        
+        // Choose acceleration based on ground/air state
+        float currentAccel = onGround ? groundAcceleration : airAcceleration;
+        float currentFriction = onGround ? groundFriction : airFriction;
+        
+        bool movingRight = Keyboard::isKeyPressed(Keyboard::Right);
+        bool movingLeft = Keyboard::isKeyPressed(Keyboard::Left);
+        
+        // Horizontal movement with smooth acceleration
+        if (movingRight && !movingLeft) {
+            // Check if turning around (was moving left, now moving right)
+            if (velocityX < -skidThreshold) {
+                // Skidding - apply extra deceleration for snappy turn-around
+                velocityX += currentAccel + turnAroundBoost;
+            } else {
+                // Normal acceleration with diminishing returns near max speed
+                float speedRatio = abs(velocityX) / maxSpd;
+                float adjustedAccel = currentAccel * (1.0f - speedRatio * 0.5f);
+                velocityX += adjustedAccel;
+            }
             if (velocityX > maxSpd) velocityX = maxSpd;
         }
-        else if (Keyboard::isKeyPressed(Keyboard::Left)) {
-            velocityX -= acc;
+        else if (movingLeft && !movingRight) {
+            // Check if turning around (was moving right, now moving left)
+            if (velocityX > skidThreshold) {
+                // Skidding - apply extra deceleration for snappy turn-around
+                velocityX -= currentAccel + turnAroundBoost;
+            } else {
+                // Normal acceleration with diminishing returns near max speed
+                float speedRatio = abs(velocityX) / maxSpd;
+                float adjustedAccel = currentAccel * (1.0f - speedRatio * 0.5f);
+                velocityX -= adjustedAccel;
+            }
             if (velocityX < -maxSpd) velocityX = -maxSpd;
         }
-        else 
-        {
-            // Apply friction when not pressing left/right
-            if (velocityX > 0) {
-                velocityX -= friction;
-                if (velocityX < 0) velocityX = 0;
-            } else if (velocityX < 0) {
-                velocityX += friction;
-                if (velocityX > 0) velocityX = 0;
-            }
+        else {
+            // Apply friction when not pressing left/right (multiplicative for smooth stop)
+            velocityX *= currentFriction;
+            // Snap to zero when very slow to prevent sliding forever
+            if (abs(velocityX) < 0.1f) velocityX = 0;
         }
 
-        if (Keyboard::isKeyPressed(Keyboard::Space)) 
-        {
-            jump();
+        // Update coyote time (grace period after leaving ground)
+        if (onGround) {
+            coyoteTimer = coyoteTime;
+        } else {
+            coyoteTimer -= deltaTime;
+        }
+        
+        // Jump buffer - remember jump input slightly before landing
+        if (Keyboard::isKeyPressed(Keyboard::Space)) {
+            if (jumpReleased) {
+                jumpBufferTimer = jumpBufferTime;
+                jumpReleased = false;
+            }
+            jumpHeld = true;
+        } else {
+            jumpHeld = false;
+            jumpReleased = true;
+        }
+        jumpBufferTimer -= deltaTime;
+        
+        // Attempt jump if buffer is active and we can jump
+        if (jumpBufferTimer > 0 && (onGround || coyoteTimer > 0)) {
+            performJump();
+            jumpBufferTimer = 0;
+            coyoteTimer = 0;
+        }
+        
+        // Variable jump height - cut velocity when releasing jump button early
+        if (!jumpHeld && velocityY < 0 && !onGround) {
+            velocityY *= jumpCutMultiplier + (1.0f - jumpCutMultiplier) * 0.5f;
         }
     }
 
     void jump() {
-        if (onGround) {
-            velocityY = jumpStrength;
-            onGround = false;
-			justJumped = true;
-			jumpMusic.play();
+        // Public jump method for external calls (followers, etc.)
+        if (onGround || coyoteTimer > 0) {
+            performJump();
         }
+    }
+    
+    void performJump() {
+        velocityY = jumpStrength;
+        onGround = false;
+        justJumped = true;
+        coyoteTimer = 0;
+        jumpMusic.play();
     }
 
     virtual void updatePhysics(Level* level) 
@@ -219,10 +295,22 @@ public:
         PhysicsConfig* phys = level ? level->getPhysicsConfig() : nullptr;
         float grav = phys ? phys->getGravity() : gravity;
         float termVel = phys ? phys->getTerminalVelocity() : terminal_Velocity;
-        // Apply gravity if not on ground
+        
+        // Apply gravity with smooth acceleration (not instant)
         if (!onGround) {
-            velocityY += grav;
-            if (velocityY >= termVel) velocityY = termVel;
+            // Apply stronger gravity when falling (more satisfying arc)
+            float gravityMultiplier = (velocityY > 0) ? 1.2f : 1.0f;
+            velocityY += grav * gravityMultiplier;
+            
+            // Smooth approach to terminal velocity
+            if (velocityY > termVel) {
+                velocityY = termVel;
+            }
+        } else {
+            // Reset vertical velocity when grounded
+            if (velocityY > 0) {
+                velocityY = 0;
+            }
         }
 
         // Handle collisions
@@ -243,12 +331,12 @@ public:
             sprite.setColor(Color::White);
         }
 
-        // Apply horizontal movement
+        // Clamp horizontal speed
         float maxSpd = phys ? phys->getMaxSpeed() : max_speed;
-        if (velocityX > 0) {
-            velocityX = min(velocityX, maxSpd);
-        } else if (velocityX < 0) {
-            velocityX = max(velocityX, -maxSpd);
+        if (velocityX > maxSpd) {
+            velocityX = maxSpd;
+        } else if (velocityX < -maxSpd) {
+            velocityX = -maxSpd;
         }
     }
 

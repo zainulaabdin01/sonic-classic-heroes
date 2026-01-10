@@ -110,184 +110,198 @@ public:
         currentScreen(MAIN_MENU), main_option(1), game_mode(1),levelOption(1), settings_option(1),
         music_on(true), tmusic_vol(50), sound_e_on(true), sound_e_vol(80) {
 
-        if (!font1.loadFromFile("Data/title.ttf")) {
-            cout << "Error loading font1" << endl;
+        // Load SEGA font for title
+        if (!font1.loadFromFile("Data/Sega.TTF")) {
+            cout << "Error loading Sega.TTF font" << endl;
         }
 
-        if (!font2.loadFromFile("Data/Gaslight Regular.ttf")) {
-            cout << "Error loading font2" << endl;
+        // Load Johnny Fever font for menu options
+        if (!font2.loadFromFile("Data/Johnny Fever.otf")) {
+            cout << "Error loading Johnny Fever.otf font" << endl;
         }
 
         if (!font3.loadFromFile("Data/Eating Pasta.ttf")) {
             cout << "Error loading font3" << endl;
         }
 
-        if (!font4.loadFromFile("Data/Frileder-Regular.ttf")) {
+        if (!font4.loadFromFile("Data/HurmeGeometricSans1.otf")) {
             cout << "Error loading font4" << endl;
         }
 
-        // Initialize main menu texts
+        // Initialize main menu title with SEGA font - large and centered
         sonic.setFont(font1);
-        sonic.setString("sonic  classic  heroes");
-        sonic.setCharacterSize(30);
-        sonic.setFillColor(Color::Blue);
-        sonic.setOutlineColor(Color::Yellow);
-        sonic.setOutlineThickness(2);
-        sonic.setPosition(90, 150);
+        sonic.setString("SONIC CLASSIC HEROES");
+        sonic.setCharacterSize(96);
+        sonic.setFillColor(Color(0, 80, 200));
+        sonic.setOutlineColor(Color(255, 200, 0));
+        sonic.setOutlineThickness(5);
+        // Center the title (window width 1200)
+        sonic.setPosition(600 - sonic.getGlobalBounds().width / 2, 60);
 
+        // Menu options with Frileder font
         start_game.setFont(font2);
         start_game.setString("Start Game");
-        start_game.setPosition(440, 290);
-        start_game.setCharacterSize(75);
+        start_game.setCharacterSize(54);
         start_game.setFillColor(Color::White);
+        start_game.setPosition(600 - start_game.getGlobalBounds().width / 2, 280);
 
         help.setFont(font2);
         help.setString("Help");
-        help.setPosition(440, 390);
-        help.setCharacterSize(75);
+        help.setCharacterSize(54);
         help.setFillColor(Color::White);
+        help.setPosition(600 - help.getGlobalBounds().width / 2, 360);
 
         high_scores.setFont(font2);
         high_scores.setString("High Scores");
-        high_scores.setPosition(440, 490);
-        high_scores.setCharacterSize(75);
+        high_scores.setCharacterSize(54);
         high_scores.setFillColor(Color::White);
+        high_scores.setPosition(600 - high_scores.getGlobalBounds().width / 2, 440);
 
         settings.setFont(font2);
         settings.setString("Settings");
-        settings.setPosition(440, 590);
-        settings.setCharacterSize(75);
+        settings.setCharacterSize(54);
         settings.setFillColor(Color::White);
+        settings.setPosition(600 - settings.getGlobalBounds().width / 2, 520);
 
         quit.setFont(font2);
         quit.setString("Quit Game");
-        quit.setPosition(440, 690);
-        quit.setCharacterSize(75);
+        quit.setCharacterSize(54);
         quit.setFillColor(Color::White);
+        quit.setPosition(600 - quit.getGlobalBounds().width / 2, 600);
 
         main_text.setFont(font2);
-        main_text.setCharacterSize(75);
-        main_text.setFillColor(Color(255, 127, 127));
+        main_text.setCharacterSize(54);
+        main_text.setFillColor(Color::Yellow);  // Contrasts well with blue background
+        main_text.setOutlineColor(Color::Black);
+        main_text.setOutlineThickness(2);
 
         // Game mode selection texts
-        difficulty.setFont(font2);
-        difficulty.setString("Select Difficulty: ");
-        difficulty.setPosition(290, 140);
-        difficulty.setCharacterSize(120);
-        difficulty.setFillColor(Color::White);
+        difficulty.setFont(font1);
+        difficulty.setString("SELECT MODE");
+        difficulty.setCharacterSize(64);
+        difficulty.setFillColor(Color(0, 80, 200));
+        difficulty.setOutlineColor(Color(255, 200, 0));
+        difficulty.setOutlineThickness(3);
 
         normal_mode.setFont(font2);
         normal_mode.setString("Normal Mode");
-        normal_mode.setPosition(200, 450);
-        normal_mode.setCharacterSize(75);
+        normal_mode.setCharacterSize(48);
         normal_mode.setFillColor(Color::White);
 
         boss_level.setFont(font2);
         boss_level.setString("BOSS Level");
-        boss_level.setPosition(750, 450);
-        boss_level.setCharacterSize(75);
+        boss_level.setCharacterSize(48);
         boss_level.setFillColor(Color::White);
 
-        back_to_menu.setFont(font3);
+        back_to_menu.setFont(font2);
         back_to_menu.setString("Back");
-        back_to_menu.setCharacterSize(65);
-        back_to_menu.setFillColor(Color::White);
+        back_to_menu.setCharacterSize(40);
+        back_to_menu.setFillColor(Color(200, 200, 200));
 
-        // Settings texts
-        title.setFont(font4);
-        title.setCharacterSize(135);
-        title.setFillColor(Color::White);
-        title.setOutlineColor(Color::Red);
-        title.setOutlineThickness(0.3);
+        // Settings/title texts - use SEGA font for headings
+        title.setFont(font1);
+        title.setCharacterSize(64);
+        title.setFillColor(Color(0, 80, 200));
+        title.setOutlineColor(Color(255, 200, 0));
+        title.setOutlineThickness(3);
 
         level1.setFont(font2);
-        level1.setString("Level 1: Labryrinth Zone");
-        level1.setPosition(300, 300);
-        level1.setCharacterSize(75);
+        level1.setString("Level 1: Labyrinth Zone");
+        level1.setCharacterSize(44);
         level1.setFillColor(Color::White);
 
         level2.setFont(font2);
         level2.setString("Level 2: Ice Cap Zone");
-        level2.setPosition(300, 420);
-        level2.setCharacterSize(75);
+        level2.setCharacterSize(44);
         level2.setFillColor(Color::White);
 
         level3.setFont(font2);
         level3.setString("Level 3: Death Egg Zone");
-        level3.setPosition(300, 540);
-        level3.setCharacterSize(75);
+        level3.setCharacterSize(44);
         level3.setFillColor(Color::White);
 
-        levelBack.setFont(font3);
+        levelBack.setFont(font2);
         levelBack.setString("Back");
-        levelBack.setCharacterSize(65);
-        levelBack.setFillColor(Color::White);
-        levelBack.setPosition(40, 780);
+        levelBack.setCharacterSize(40);
+        levelBack.setFillColor(Color(200, 200, 200));
+        levelBack.setPosition(50, 800);
 
-        music.setFont(font3);
-        music.setString("Music: ");
-        music.setCharacterSize(60);
+        music.setFont(font2);
+        music.setString("Music:");
+        music.setCharacterSize(42);
         music.setFillColor(Color::White);
-        music.setPosition(100, 250);
+        music.setPosition(200, 220);
 
-        music_state.setFont(font3);
-        music_state.setCharacterSize(55);
+        music_state.setFont(font2);
+        music_state.setCharacterSize(42);
         music_state.setFillColor(Color::White);
-        music_state.setPosition(300, 255);
+        music_state.setPosition(420, 220);
 
-        music_vol.setFont(font3);
-        music_vol.setString("Volume: ");
-        music_vol.setCharacterSize(60);
+        music_vol.setFont(font2);
+        music_vol.setString("Music Volume:");
+        music_vol.setCharacterSize(42);
         music_vol.setFillColor(Color::White);
-        music_vol.setPosition(100, 320);
+        music_vol.setPosition(200, 300);
 
-        music_volume.setFont(font3);
-        music_volume.setCharacterSize(55);
+        music_volume.setFont(font2);
+        music_volume.setCharacterSize(42);
         music_volume.setFillColor(Color::White);
-        music_volume.setPosition(340, 325);
+        music_volume.setPosition(540, 300);
 
-        sound_eff.setFont(font3);
-        sound_eff.setString("Sound Effects: ");
-        sound_eff.setCharacterSize(60);
+        sound_eff.setFont(font2);
+        sound_eff.setString("Sound Effects:");
+        sound_eff.setCharacterSize(42);
         sound_eff.setFillColor(Color::White);
-        sound_eff.setPosition(100, 450);
+        sound_eff.setPosition(200, 420);
 
-        sound_eff_state.setFont(font3);
-        sound_eff_state.setCharacterSize(55);
+        sound_eff_state.setFont(font2);
+        sound_eff_state.setCharacterSize(42);
         sound_eff_state.setFillColor(Color::White);
-        sound_eff_state.setPosition(550, 455);
+        sound_eff_state.setPosition(540, 420);
 
-        sound_eff_vol.setFont(font3);
-        sound_eff_vol.setString("Volume: ");
-        sound_eff_vol.setCharacterSize(60);
+        sound_eff_vol.setFont(font2);
+        sound_eff_vol.setString("Effects Volume:");
+        sound_eff_vol.setCharacterSize(42);
         sound_eff_vol.setFillColor(Color::White);
-        sound_eff_vol.setPosition(100, 520);
+        sound_eff_vol.setPosition(200, 500);
 
-        sound_e_volume.setFont(font3);
-        sound_e_volume.setCharacterSize(55);
+        sound_e_volume.setFont(font2);
+        sound_e_volume.setCharacterSize(42);
         sound_e_volume.setFillColor(Color::White);
-        sound_e_volume.setPosition(340, 525);
+        sound_e_volume.setPosition(540, 500);
 
-        settings_text.setFont(font3);
-        settings_text.setCharacterSize(55);
-        settings_text.setFillColor(Color(255, 127, 127));
+        settings_text.setFont(font2);
+        settings_text.setCharacterSize(42);
+        settings_text.setFillColor(Color::Yellow);  // Contrasts well with blue background
+        settings_text.setOutlineColor(Color::Black);
+        settings_text.setOutlineThickness(2);
 
         // High scores
         highscore.setFont(font2);
         highscore.setString("High Scores Placeholder");
-        highscore.setCharacterSize(50);
+        highscore.setCharacterSize(44);
         highscore.setFillColor(Color::White);
-        highscore.setPosition(300, 300);
 
-        // Load textures
-        if (!backgroundTexture.loadFromFile("Data/background1.png")) {
+        // Load textures - using title screen as menu background
+        if (!backgroundTexture.loadFromFile("Data/title_screen.gif")) {
             cout << "Error loading background texture" << endl;
         }
         if (!help_manual_texture.loadFromFile("Data/help-manual.png")) {
             cout << "Error loading help manual texture" << endl;
         }
         backgroundSprite.setTexture(backgroundTexture);
-        backgroundSprite.setScale(1.2f, 1.2f);
+        // Reduce background opacity by 25% (75% visible = 191 alpha)
+        backgroundSprite.setColor(Color(255, 255, 255, 191));
+        // Scale background to fit window (1200x900)
+        float scaleX = 1200.0f / backgroundTexture.getSize().x;
+        float scaleY = 900.0f / backgroundTexture.getSize().y;
+        float scale = max(scaleX, scaleY);  // Use larger scale to cover entire screen
+        backgroundSprite.setScale(scale, scale);
+        // Center the background
+        backgroundSprite.setPosition(
+            (1200.0f - backgroundTexture.getSize().x * scale) / 2.0f,
+            (900.0f - backgroundTexture.getSize().y * scale) / 2.0f
+        );
         help_manual.setTexture(help_manual_texture);
         help_manual.setScale(0.5f, 0.5f);
         help_manual.setPosition(15, 160);
@@ -361,9 +375,9 @@ private:
         }
         else if (key == Keyboard::Enter) {
             switch (main_option) {
-            case 1: // Start Game
-                currentScreen = GAME_MODE_SELECTION;
-                game_mode = 1;
+            case 1: // Start Game - go directly to level selection
+                currentScreen = LEVEL_SELECTION;
+                levelOption = 1;
                 break;
             case 2: // Help
                 break;
@@ -420,7 +434,8 @@ private:
             levelOption = (levelOption == 1) ? 3 : levelOption - 1;
         }
         else if (key == Keyboard::Escape) {
-            currentScreen = GAME_MODE_SELECTION;
+            currentScreen = MAIN_MENU;
+            main_option = 1;
         }
         else if (key == Keyboard::Enter) {
             selectedLevel = levelOption; // Set selected level
@@ -495,9 +510,18 @@ private:
             updateMainMenu();
         }
         else if (currentScreen == LEVEL_SELECTION) {
-            level1.setFillColor(levelOption == 1 ? Color(255, 127, 127) : Color::White);
-            level2.setFillColor(levelOption == 2 ? Color(255, 127, 127) : Color::White);
-            level3.setFillColor(levelOption == 3 ? Color(255, 127, 127) : Color::White);
+            // Selected level: yellow with black outline, unselected: white
+            level1.setFillColor(levelOption == 1 ? Color::Yellow : Color::White);
+            level1.setOutlineColor(Color::Black);
+            level1.setOutlineThickness(levelOption == 1 ? 2.0f : 0.0f);
+            
+            level2.setFillColor(levelOption == 2 ? Color::Yellow : Color::White);
+            level2.setOutlineColor(Color::Black);
+            level2.setOutlineThickness(levelOption == 2 ? 2.0f : 0.0f);
+            
+            level3.setFillColor(levelOption == 3 ? Color::Yellow : Color::White);
+            level3.setOutlineColor(Color::Black);
+            level3.setOutlineThickness(levelOption == 3 ? 2.0f : 0.0f);
         }
         else if (currentScreen == GAME_MODE_SELECTION) {
             updateGameMode();
@@ -514,23 +538,23 @@ private:
         switch (main_option) {
         case 1:
             main_text.setString("Start Game");
-            main_text.setPosition(440, 290);
+            main_text.setPosition(600 - main_text.getGlobalBounds().width / 2, 280);
             break;
         case 2:
             main_text.setString("Help");
-            main_text.setPosition(440, 390);
+            main_text.setPosition(600 - main_text.getGlobalBounds().width / 2, 360);
             break;
         case 3:
             main_text.setString("High Scores");
-            main_text.setPosition(440, 490);
+            main_text.setPosition(600 - main_text.getGlobalBounds().width / 2, 440);
             break;
         case 4:
             main_text.setString("Settings");
-            main_text.setPosition(440, 590);
+            main_text.setPosition(600 - main_text.getGlobalBounds().width / 2, 520);
             break;
         case 5:
             main_text.setString("Quit Game");
-            main_text.setPosition(440, 690);
+            main_text.setPosition(600 - main_text.getGlobalBounds().width / 2, 600);
             break;
         }
     }
@@ -538,11 +562,11 @@ private:
     void updateGameMode() {
         if (game_mode == 1) {
             main_text.setString("Normal Mode");
-            main_text.setPosition(200, 450);
+            main_text.setPosition(250, 400);
         }
         else {
             main_text.setString("BOSS Level");
-            main_text.setPosition(750, 450);
+            main_text.setPosition(700, 400);
         }
     }
 
@@ -555,19 +579,19 @@ private:
         switch (settings_option) {
         case 1:
             settings_text.setString(music_on ? "ON" : "OFF");
-            settings_text.setPosition(300, 255);
+            settings_text.setPosition(420, 220);
             break;
         case 2:
             settings_text.setString(to_string(tmusic_vol));
-            settings_text.setPosition(340, 325);
+            settings_text.setPosition(540, 300);
             break;
         case 3:
             settings_text.setString(sound_e_on ? "ON" : "OFF");
-            settings_text.setPosition(550, 455);
+            settings_text.setPosition(540, 420);
             break;
         case 4:
             settings_text.setString(to_string(sound_e_vol));
-            settings_text.setPosition(340, 525);
+            settings_text.setPosition(540, 500);
             break;
         }
     }
@@ -586,7 +610,12 @@ private:
             window.draw(main_text);
         }
         else if (currentScreen == GAME_MODE_SELECTION) {
-            back_to_menu.setPosition(40, 780);
+            // Center the difficulty title
+            difficulty.setPosition(600 - difficulty.getGlobalBounds().width / 2, 100);
+            // Position mode options
+            normal_mode.setPosition(250, 400);
+            boss_level.setPosition(700, 400);
+            back_to_menu.setPosition(50, 800);
             window.draw(difficulty);
             window.draw(normal_mode);
             window.draw(boss_level);
@@ -594,8 +623,12 @@ private:
             window.draw(back_to_menu);
         }
         else if (currentScreen == LEVEL_SELECTION) {
-            title.setString("Select Level");
-            title.setPosition(370, 30);
+            title.setString("SELECT LEVEL");
+            title.setPosition(600 - title.getGlobalBounds().width / 2, 80);
+            // Center level options
+            level1.setPosition(600 - level1.getGlobalBounds().width / 2, 280);
+            level2.setPosition(600 - level2.getGlobalBounds().width / 2, 380);
+            level3.setPosition(600 - level3.getGlobalBounds().width / 2, 480);
             window.draw(title);
             window.draw(level1);
             window.draw(level2);
@@ -603,9 +636,9 @@ private:
             window.draw(levelBack);
         }
         else if (currentScreen == SETTINGS) {
-            back_to_menu.setPosition(40, 780);
-            title.setString("Settings");
-            title.setPosition(450, 30);
+            back_to_menu.setPosition(50, 800);
+            title.setString("SETTINGS");
+            title.setPosition(600 - title.getGlobalBounds().width / 2, 80);
             window.draw(title);
             window.draw(music);
             window.draw(music_state);
@@ -619,9 +652,10 @@ private:
             window.draw(settings_text);
         }
         else if (currentScreen == HIGH_SCORES) {
-            back_to_menu.setPosition(40, 550);
-            title.setString("High Scores");
-            title.setPosition(300, 30);
+            back_to_menu.setPosition(50, 600);
+            title.setString("HIGH SCORES");
+            title.setPosition(600 - title.getGlobalBounds().width / 2, 80);
+            highscore.setPosition(600 - highscore.getGlobalBounds().width / 2, 300);
             window.draw(title);
             window.draw(highscore);
             window.draw(back_to_menu);

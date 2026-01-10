@@ -19,6 +19,7 @@ private:
     Font font;
     Text scoreText;
     Text healthText;
+    Text levelText;
     Clock deltaClock;
     int startLevelIndex;
 
@@ -34,14 +35,23 @@ public:
         if (!font.loadFromFile("Data/Gaslight_Regular.ttf")) {
             // Handle error (font not found)
         }
+        // Score text - left side
         scoreText.setFont(font);
-        scoreText.setCharacterSize(32);
+        scoreText.setCharacterSize(38);
         scoreText.setFillColor(Color::Yellow);
         scoreText.setPosition(20, 20);
+        
+        // Health text - left side below score
         healthText.setFont(font);
-        healthText.setCharacterSize(28);
+        healthText.setCharacterSize(34);
         healthText.setFillColor(Color::Red);
-        healthText.setPosition(20, 60);
+        healthText.setPosition(20, 65);
+        
+        // Level text - right side
+        levelText.setFont(font);
+        levelText.setCharacterSize(38);
+        levelText.setFillColor(Color::Cyan);
+        levelText.setPosition(1050, 20);
     }
 
     void run() {
@@ -56,29 +66,37 @@ public:
                     window.close();
             }
 
+            // Get current player with null check
+            Player* currentPlayer = playerManager.getCurrentPlayer();
+            Level* currentLevel = levelManager.getCurrentLevel();
+            
+            if (!currentPlayer || !currentLevel) {
+                continue;  // Skip frame if player or level is null
+            }
+
             // Handle input only if not in transition
             if (!levelManager.isInTransition()) {
-                playerManager.handleInput(levelManager.getCurrentLevel());
+                playerManager.handleInput(currentLevel);
             }
 
             // Update physics only if not in transition
             if (!levelManager.isInTransition()) {
-                playerManager.updatePhysics(levelManager.getCurrentLevel());
+                playerManager.updatePhysics(currentLevel);
             }
 
             // Check for level transition
-            if (playerManager.getCurrentPlayer()->needsLevelTransition()) {
-                levelManager.handleLevelTransition(playerManager.getCurrentPlayer());
+            if (currentPlayer->needsLevelTransition()) {
+                levelManager.handleLevelTransition(currentPlayer);
             }
 
             // Update transition state
-            if (levelManager.updateTransition(playerManager.getCurrentPlayer())) {
+            if (levelManager.updateTransition(currentPlayer)) {
                 camera_offset_x = 0;
             }
 
             // Update camera position only if not in transition
             if (!levelManager.isInTransition()) {
-                float playerX = playerManager.getCurrentPlayer()->getX();
+                float playerX = currentPlayer->getX();
                 if (playerX > 1200 / 2) {
                     camera_offset_x = playerX - 1200 / 2;
                 }
@@ -86,25 +104,26 @@ public:
 
             // Update collectibles (for ring animation)
             float deltaTime = deltaClock.restart().asSeconds();
-            levelManager.getCurrentLevel()->updateCollectibles(deltaTime);
+            currentLevel->updateCollectibles(deltaTime);
 
             // Update enemies
-            float playerX = playerManager.getCurrentPlayer()->getX();
-            float playerY = playerManager.getCurrentPlayer()->getY();
-            levelManager.getCurrentLevel()->updateEnemies(deltaTime, playerX, playerY);
+            float playerX = currentPlayer->getX();
+            float playerY = currentPlayer->getY();
+            currentLevel->updateEnemies(deltaTime, playerX, playerY);
 
             // Check for enemy or projectile collision and apply damage
-            Player* mainPlayer = playerManager.getCurrentPlayer();
-            if (!mainPlayer->getIsInvulnerable() && levelManager.getCurrentLevel()->checkEnemyCollisions(playerX, playerY, mainPlayer->getWidth(), mainPlayer->getHeight())) {
+            if (!currentPlayer->getIsInvulnerable() && currentLevel->checkEnemyCollisions(playerX, playerY, currentPlayer->getWidth(), currentPlayer->getHeight())) {
                 //healthManager.decrementHealth();
-                //mainPlayer->takeDamage();
+                //currentPlayer->takeDamage();
             }
-            mainPlayer->updateInvulnerability();
+            currentPlayer->updateInvulnerability();
 
             // Update score text
             scoreText.setString("Score: " + std::to_string(scoreManager.getScore()));
             // Update health text
             healthText.setString("Health: " + std::to_string(healthManager.getHealth()));
+            // Update level text
+            levelText.setString("Level: " + std::to_string(levelManager.getCurrentLevelIndex() + 1));
 
             // Draw everything
             window.clear(Color::White);
@@ -113,6 +132,7 @@ public:
             playerManager.draw(window, camera_offset_x);
             window.draw(scoreText);
             window.draw(healthText);
+            window.draw(levelText);
             window.display();
 
             // Close the window if the game is over

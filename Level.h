@@ -52,6 +52,12 @@ public:
     }
 
     virtual ~Level() {
+        // Clean up music - ensure static pointer doesn't dangle
+        if (currentMusic == &music) {
+            music.stop();
+            currentMusic = nullptr;
+        }
+        
         // Clean up level data
         if (levelData) {
             for (int i = 0; i < height; i++) {
@@ -263,16 +269,17 @@ public:
                 if (checkCollision(playerX, playerY, playerWidth, playerHeight, ex, ey, ew, eh)) {
                     return true;
                 }
-                BeeBot* bee = static_cast<BeeBot*>(enemy);
+                // Use dynamic_cast to properly check enemy types
+                BeeBot* bee = dynamic_cast<BeeBot*>(enemy);
                 if (bee) {
-                    for (int j = 0; j < 5; ++j) {
+                    for (int j = 0; j < 2; ++j) {  // BeeBot::MAX_PROJECTILES is 2
                         const Projectile& p = bee->getProjectile(j);
                         if (p.active && checkCollision(playerX, playerY, playerWidth, playerHeight, p.x, p.y, Projectile::SIZE, Projectile::SIZE)) {
                             return true;
                         }
                     }
                 }
-                CrabMeat* crab = static_cast<CrabMeat*>(enemy);
+                CrabMeat* crab = dynamic_cast<CrabMeat*>(enemy);
                 if (crab) {
                     for (int j = 0; j < 4; ++j) {
                         const CrabMeat::Projectile& p = crab->getProjectile(j);

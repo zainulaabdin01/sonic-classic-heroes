@@ -17,7 +17,8 @@ private:
 
 public:
     LabyrinthZone(ScoreManager* scoreMgr, HealthManager* healthMgr) : Level(200, 14, 64.0f, scoreMgr, healthMgr) {
-        physicsConfig = PhysicsConfig(0.2f, 15.0f, 0.1f, 0.2f, 0.98f, 20.0f, -20.0f); // Normal/default
+        // Normal/balanced physics - good acceleration, responsive controls
+        physicsConfig = PhysicsConfig(0.45f, 15.0f, 0.92f, 0.2f, 0.65f, 18.0f, -18.0f, 0.6f);
         loadTextures();
         createLevel();
     }
@@ -154,7 +155,9 @@ private:
 
 public:
     IceCapZone(ScoreManager* scoreMgr, HealthManager* healthMgr) : Level(250, 14, 64.0f, scoreMgr, healthMgr) {
-        physicsConfig = PhysicsConfig(0.5f, 15.0f, 0.02f, 0.5f, 0.98f, 20.0f, -20.0f); // Ice: high accel/decel, low friction
+        // Ice physics - slippery! Higher friction value = less stopping power, more sliding
+        // Lower acceleration, higher max speed for momentum-based gameplay
+        physicsConfig = PhysicsConfig(0.25f, 18.0f, 0.985f, 0.1f, 0.65f, 18.0f, -17.0f, 0.4f);
         loadTextures();
         createLevel();
     }
@@ -289,7 +292,8 @@ private:
 
 public:
     DeathEggZone(ScoreManager* scoreMgr, HealthManager* healthMgr) : Level(300, 14, 64.0f, scoreMgr, healthMgr) {
-        physicsConfig = PhysicsConfig(0.08f, 15.0f, 0.05f, 0.08f, 0.5f, 20.0f, -20.0f); // Low gravity, low accel/decel, low friction
+        // Space station physics - low gravity, floaty jumps, moderate control
+        physicsConfig = PhysicsConfig(0.35f, 14.0f, 0.94f, 0.15f, 0.35f, 12.0f, -15.0f, 0.7f);
         loadTextures();
         createLevel();
     }
@@ -392,7 +396,6 @@ public:
         // Load from file using base class method
         if (!Level::loadLayoutFromFile("Data/level1.txt")) {
             cout << "Falling back to default layout!" << endl;
-            // Optionally, call your old hardcoded layout here
         }
         spawnRandomEnemies(16);
         //loadMusic("Data/level3.ogg");

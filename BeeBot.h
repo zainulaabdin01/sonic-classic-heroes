@@ -19,7 +19,7 @@ class BeeBot : public Enemy {
 
     Clock fireClock;
     float patternOffset;
-    Projectile projectiles[5];
+    Projectile projectiles[2];  // Match MAX_PROJECTILES
     Texture projectileTex;
     Sprite projectileSprite;
 
@@ -43,7 +43,7 @@ public:
         projectileSprite.setScale(Projectile::SIZE, Projectile::SIZE);
         projectileSprite.setColor(Color::Red);
 
-        for (int i = 0; i < MAX_PROJECTILES; i++) {
+        for (int i = 0; i < 2; i++) {
             projectiles[i].active = false;
         }
     }
@@ -67,7 +67,7 @@ public:
             float length = sqrt(dx * dx + dy * dy);
 
             if (length > 0) {
-                for (int i = 0; i < MAX_PROJECTILES; i++) {
+                for (int i = 0; i < 2; i++) {
                     if (!projectiles[i].active) {
                         projectiles[i].x = centerX - Projectile::SIZE / 2;
                         projectiles[i].y = centerY - Projectile::SIZE / 2;
@@ -81,7 +81,7 @@ public:
         }
 
         // Update projectiles
-        for (int i = 0; i < MAX_PROJECTILES; i++) {
+        for (int i = 0; i < 2; i++) {
             if (projectiles[i].active) {
                 projectiles[i].x += projectiles[i].velX * deltaTime;
                 projectiles[i].y += projectiles[i].velY * deltaTime;
@@ -99,7 +99,7 @@ public:
         Enemy::draw(window, camera_offset_x);
 
         // Draw active projectiles
-        for (int i = 0; i < MAX_PROJECTILES; i++) {
+        for (int i = 0; i < 2; i++) {
             if (projectiles[i].active) {
                 projectileSprite.setPosition(
                     projectiles[i].x - camera_offset_x,
@@ -110,6 +110,7 @@ public:
         }
     }
 
+    static int getMaxProjectiles() { return 2; }
     const Projectile& getProjectile(int idx) const { return projectiles[idx]; }
 };
 

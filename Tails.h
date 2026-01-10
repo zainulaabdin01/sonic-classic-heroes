@@ -43,8 +43,13 @@ private:
     void updateSprite() {
         Texture* newTexture = nullptr;
 
-        // Check for max speed (ball form) - priority condition
-        if (abs(velocityX) >= max_speed) {
+        // Check for flying first - highest priority when in flight mode
+        if (isFlying) {
+            newTexture = &flyingTexture;
+            isBall = false;
+        }
+        // Check for max speed (ball form)
+        else if (abs(velocityX) >= max_speed) {
             newTexture = &ballTexture;
             isBall = true;
         }
@@ -53,10 +58,6 @@ private:
             newTexture = &runningTexture;
             isBall = false;
         }
-		else if (isFlying) {
-			newTexture = &flyingTexture;
-			isBall = false;
-		}
         // Standing still
         else {
             newTexture = &standingTexture;
