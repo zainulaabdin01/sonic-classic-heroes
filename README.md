@@ -147,33 +147,18 @@ sonic-classic-heroes/
 ## 📸 Screenshots
 
 ### Main Menu
-![Main Menu](screenshots/menu.png)
+![Main Menu](menu.png)
 *SEGA-style menu with level selection and settings*
 
 ### Labyrinth Zone (Level 1)
-![Labyrinth Zone](screenshots/level1.png)
+![Labyrinth Zone](level1.png)
 *Ancient ruins with standard physics - Easy difficulty, 200×14 cells*
 
 ### Ice Cap Zone (Level 2)
-![Ice Cap Zone](screenshots/level2.png)
+![Ice Cap Zone](level2.png)
 *Frozen tundra with slippery ice physics - Medium difficulty, 250×14 cells*
 
 ### Death Egg Zone (Level 3)
-![Death Egg Zone](screenshots/level3.png)
+![Death Egg Zone](level3.png)
 *Space station with low gravity - Hard difficulty, 300×14 cells*
 
----
-
-## 📜 Disclaimer
-
-This is a **fan-made educational project**. Sonic the Hedgehog and all related characters are trademarks of **SEGA Corporation**. This project is not affiliated with or endorsed by SEGA.
-
----
-
-<div align="center">
-
-**Made with 💙, C++, and pure speed**
-
-*Gotta go fast!* 🦔💨
-
-</div>
