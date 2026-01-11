@@ -94,7 +94,7 @@ Face off against BatBrain, BeeBot, Motobug, and CrabMeat—each with unique move
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/sonic-classic-heroes.git
+git clone https://github.com/zainulaabdin01/sonic-classic-heroes.git
 cd sonic-classic-heroes
 
 # Compile (example with g++)
